@@ -1,0 +1,48 @@
+name: Build Windows plugin
+
+# Runs every time you push, and when you press "Run workflow" on the Actions page.
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+
+      - name: Build
+        run: cmake --build build --config Release --target GigGoatPlayer_VST3 GigGoatPlayer_Standalone --parallel
+
+      - name: Package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item "build/GigGoatPlayer_artefacts/Release/VST3/Gig Goat Player.vst3" dist -Recurse
+          Copy-Item "build/GigGoatPlayer_artefacts/Release/Standalone/Gig Goat Player.exe" dist
+          Copy-Item README.md dist
+          Compress-Archive -Path dist/* -DestinationPath GigGoatPlayer-Windows.zip -Force
+          Get-ChildItem -Recurse dist | Select-Object FullName, Length
+
+      - name: Keep the zip on the run page
+        uses: actions/upload-artifact@v4
+        with:
+          name: GigGoatPlayer-Windows
+          path: GigGoatPlayer-Windows.zip
+
+      # Puts the newest build on the "Releases" page, so it is easy to find.
+      - name: Update the "latest" release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest --yes --cleanup-tag 2>$null
+          gh release create latest GigGoatPlayer-Windows.zip --title "Latest Windows build" --notes "Built from commit ${{ github.sha }}. Unzip, then copy the 'Gig Goat Player.vst3' folder into C:\Program Files\Common Files\VST3"
+          exit 0
