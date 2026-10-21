@@ -19,14 +19,16 @@ jobs:
         run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64
 
       - name: Build
-        run: cmake --build build --config Release --target GigGoatPlayer_VST3 GigGoatPlayer_Standalone --parallel
+        run: cmake --build build --config Release --target GigGoatPlayer_VST3 GigGoatPlayer_Standalone GoatOrchestra_VST3 GoatOrchestra_Standalone --parallel
 
       - name: Package
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
-          Copy-Item "build/GigGoatPlayer_artefacts/Release/VST3/Gig Goat Player.vst3" dist -Recurse
-          Copy-Item "build/GigGoatPlayer_artefacts/Release/Standalone/Gig Goat Player.exe" dist
+          Copy-Item "build/GigGoatPlayer_artefacts/Release/VST3/Goat GiG Player.vst3" dist -Recurse
+          Copy-Item "build/GigGoatPlayer_artefacts/Release/Standalone/Goat GiG Player.exe" dist
+          Copy-Item "build/GoatOrchestra_artefacts/Release/VST3/Orchestra of Goats GiG Player.vst3" dist -Recurse
+          Copy-Item "build/GoatOrchestra_artefacts/Release/Standalone/Orchestra of Goats GiG Player.exe" dist
           Copy-Item README.md dist
           Compress-Archive -Path dist/* -DestinationPath GigGoatPlayer-Windows.zip -Force
           Get-ChildItem -Recurse dist | Select-Object FullName, Length
@@ -44,5 +46,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete latest --yes --cleanup-tag 2>$null
-          gh release create latest GigGoatPlayer-Windows.zip --title "Latest Windows build" --notes "Built from commit ${{ github.sha }}. Unzip, then copy the 'Gig Goat Player.vst3' folder into C:\Program Files\Common Files\VST3"
+          gh release create latest GigGoatPlayer-Windows.zip --title "Latest Windows build" --notes "Built from commit ${{ github.sha }}. Unzip, then copy the two .vst3 folders into C:\Program Files\Common Files\VST3"
           exit 0

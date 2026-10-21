@@ -20,18 +20,8 @@ GigGoatEditor::GigGoatEditor (GigGoatProcessor& p)
       releaseA (p.apvts, "release", release)
 {
     setLookAndFeel (&glassLook);
-    {
-        grain = juce::Image (juce::Image::ARGB, 128, 128, true);
-        juce::Random rnd (7);
-        for (int y = 0; y < 128; ++y)
-            for (int x = 0; x < 128; ++x)
-            {
-                const auto a = (juce::uint8) rnd.nextInt (22);
-                grain.setPixelAt (x, y, rnd.nextBool() ? juce::Colour::fromRGBA (255, 255, 255, a)
-                                                       : juce::Colour::fromRGBA (0, 30, 30, a));
-            }
-    }
-    setSize (640, 420);
+    grain = goatbrand::makeGrain();
+    setSize (640, 440);
 
     addAndMakeVisible (openButton);
     addAndMakeVisible (prevButton);
@@ -155,55 +145,17 @@ void GigGoatEditor::timerCallback()
 void GigGoatEditor::paint (juce::Graphics& g)
 {
     const auto b = getLocalBounds().toFloat();
-
-    // turquoise glass body
-    g.setGradientFill (juce::ColourGradient (juce::Colour (0xff17b3ae), 0, 0,
-                                             juce::Colour (0xff04535d), 0, b.getHeight(), false));
-    g.fillAll();
-    g.setGradientFill (juce::ColourGradient (juce::Colour (0x5545f0dc), b.getWidth() * 0.2f, b.getHeight() * 0.1f,
-                                             juce::Colours::transparentBlack, b.getWidth() * 0.9f, b.getHeight(), true));
-    g.fillAll();
-
-    // frosted grain
-    g.setTiledImageFill (grain, 0, 0, 1.0f);
-    g.fillAll();
-
-    // glossy sheen across the top
-    juce::Path sheen;
-    sheen.startNewSubPath (0, 0);
-    sheen.lineTo (b.getWidth(), 0);
-    sheen.lineTo (b.getWidth(), b.getHeight() * 0.22f);
-    sheen.quadraticTo (b.getWidth() * 0.5f, b.getHeight() * 0.36f, 0, b.getHeight() * 0.2f);
-    sheen.closeSubPath();
-    g.setGradientFill (juce::ColourGradient (juce::Colours::white.withAlpha (0.30f), 0, 0,
-                                             juce::Colours::white.withAlpha (0.04f), 0, b.getHeight() * 0.3f, false));
-    g.fillPath (sheen);
-
-    // inset glass panel behind the controls
-    auto panel = b.reduced (10.0f).withTrimmedTop (50.0f);
-    g.setColour (juce::Colour (0x40021c20));
-    g.fillRoundedRectangle (panel, 14.0f);
-    g.setGradientFill (juce::ColourGradient (juce::Colours::white.withAlpha (0.16f), 0, panel.getY(),
-                                             juce::Colours::white.withAlpha (0.0f), 0, panel.getY() + 90.0f, false));
-    g.fillRoundedRectangle (panel, 14.0f);
-    g.setColour (juce::Colours::white.withAlpha (0.4f));
-    g.drawRoundedRectangle (panel, 14.0f, 1.2f);
-
-    // title
-    g.setFont (juce::FontOptions (24.0f, juce::Font::bold));
-    g.setColour (juce::Colour (0x66021c20));
-    g.drawText ("Gig Goat Player", 17, 11, 400, 30, juce::Justification::centredLeft);
-    g.setColour (juce::Colours::white);
-    g.drawText ("Gig Goat Player", 16, 9, 400, 30, juce::Justification::centredLeft);
-    g.setColour (juce::Colour (0xffc9fff8));
-    g.setFont (juce::FontOptions (12.0f));
-    g.drawText ("Plays .gig sample files", 18, 33, 400, 16, juce::Justification::centredLeft);
+    goatbrand::drawGlassBody (g, b, grain);
+    goatbrand::drawGlassPanel (g, b.reduced (10.0f).withTrimmedTop (62.0f));
+    goatbrand::drawGoatHead (g, { 12.0f, 4.0f, 60.0f, 60.0f });
+    goatbrand::drawTitle (g, { 76.0f, 8.0f, 380.0f, 36.0f }, "Goat GiG Player");
+    goatbrand::drawByline (g, 82.0f, 42.0f);
 }
 
 void GigGoatEditor::resized()
 {
     auto area = getLocalBounds().reduced (22);
-    area.removeFromTop (40);
+    area.removeFromTop (52);
 
     auto row = area.removeFromTop (28);
     openButton.setBounds (row.removeFromLeft (170));

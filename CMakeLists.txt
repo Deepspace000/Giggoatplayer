@@ -26,35 +26,44 @@ FetchContent_Declare(libgig
 FetchContent_MakeAvailable(JUCE libgig)
 set_target_properties(libgig PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-juce_add_plugin(GigGoatPlayer
-    COMPANY_NAME                "Deepspace"
-    PLUGIN_MANUFACTURER_CODE    Dpsp
-    PLUGIN_CODE                 GgPl
-    PRODUCT_NAME                "Gig Goat Player"
-    FORMATS                     VST3 Standalone
-    IS_SYNTH                    TRUE
-    NEEDS_MIDI_INPUT            TRUE
-    NEEDS_MIDI_OUTPUT           FALSE
-    VST3_CATEGORIES             Instrument Sampler
-    COPY_PLUGIN_AFTER_BUILD     FALSE)
+juce_add_binary_data(GoatAssets SOURCES assets/goat_head.png)
+set_target_properties(GoatAssets PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-target_sources(GigGoatPlayer PRIVATE
-    Source/GigEngine.cpp
+# Both plugins share the sampler engine and the look.
+function(add_goat_plugin target product code)
+    juce_add_plugin(${target}
+        COMPANY_NAME                "Deepspace"
+        PLUGIN_MANUFACTURER_CODE    Dpsp
+        PLUGIN_CODE                 ${code}
+        PRODUCT_NAME                "${product}"
+        FORMATS                     VST3 Standalone
+        IS_SYNTH                    TRUE
+        NEEDS_MIDI_INPUT            TRUE
+        NEEDS_MIDI_OUTPUT           FALSE
+        VST3_CATEGORIES             Instrument Sampler
+        COPY_PLUGIN_AFTER_BUILD     FALSE)
+
+    target_sources(${target} PRIVATE Source/GigEngine.cpp ${ARGN})
+    target_include_directories(${target} PRIVATE Source)
+    target_compile_definitions(${target} PRIVATE
+        JUCE_WEB_BROWSER=0
+        JUCE_USE_CURL=0
+        JUCE_VST3_CAN_REPLACE_VST2=0
+        JUCE_DISPLAY_SPLASH_SCREEN=0
+        JUCE_REPORT_APP_USAGE=0)
+    target_link_libraries(${target}
+        PRIVATE
+            juce::juce_audio_utils
+            libgig
+            GoatAssets
+        PUBLIC
+            juce::juce_recommended_config_flags)
+endfunction()
+
+add_goat_plugin(GigGoatPlayer "Goat GiG Player" GgPl
     Source/PluginProcessor.cpp
     Source/PluginEditor.cpp)
 
-target_include_directories(GigGoatPlayer PRIVATE Source)
-
-target_compile_definitions(GigGoatPlayer PRIVATE
-    JUCE_WEB_BROWSER=0
-    JUCE_USE_CURL=0
-    JUCE_VST3_CAN_REPLACE_VST2=0
-    JUCE_DISPLAY_SPLASH_SCREEN=0
-    JUCE_REPORT_APP_USAGE=0)
-
-target_link_libraries(GigGoatPlayer
-    PRIVATE
-        juce::juce_audio_utils
-        libgig
-    PUBLIC
-        juce::juce_recommended_config_flags)
+add_goat_plugin(GoatOrchestra "Orchestra of Goats GiG Player" GoOr
+    Source/OrchestraProcessor.cpp
+    Source/OrchestraEditor.cpp)

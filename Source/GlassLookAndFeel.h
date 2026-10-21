@@ -40,30 +40,52 @@ public:
                                            Colour (0xff3b464b), cx + rad, cy + rad, false));
         g.fillEllipse (r);
 
-        // face
+        // face: polished steel, light catching two opposite lobes like a turned-metal cap
         auto face = r.reduced (rad * 0.1f);
-        g.setGradientFill (ColourGradient (pressed ? Colour (0xff8d9ba1) : Colour (0xffe6edf0), face.getX(), face.getY(),
-                                           pressed ? Colour (0xffd5dee2) : Colour (0xff6c7a80), face.getRight(), face.getBottom(), false));
-        g.fillEllipse (face);
-
-        // brushed concentric grain
         Path clip;
         clip.addEllipse (face);
         g.saveState();
         g.reduceClipRegion (clip);
         const float fr = face.getWidth() * 0.5f;
-        for (float q = 1.0f; q < fr; q += 1.3f)
+        const int wedges = 180;
+        for (int i = 0; i < wedges; ++i)
         {
-            const int h = (int) (q * 13.0f) % 5;
-            g.setColour ((h < 2 ? Colours::white : Colours::black).withAlpha (0.035f + 0.015f * (float) h));
-            g.drawEllipse (cx - q, cy - q, q * 2.0f, q * 2.0f, 0.6f);
+            const float a0 = MathConstants<float>::twoPi * (float) i / wedges;
+            const float a1 = MathConstants<float>::twoPi * (float) (i + 1) / wedges + 0.01f;
+            const float m = 0.5f * (a0 + a1);
+            const float l1 = std::pow (0.5f + 0.5f * std::cos (2.0f * (m - 0.9f)), 3.0f);
+            const float l2 = 0.35f * std::pow (0.5f + 0.5f * std::cos (4.0f * (m - 2.4f)), 2.0f);
+            float v = jlimit (0.0f, 1.0f, 0.18f + 0.85f * l1 + l2);
+            if (pressed) v *= 0.8f;
+            Path wedge;
+            wedge.addTriangle (cx, cy, cx + std::sin (a0) * fr * 1.5f, cy - std::cos (a0) * fr * 1.5f,
+                               cx + std::sin (a1) * fr * 1.5f, cy - std::cos (a1) * fr * 1.5f);
+            g.setColour (Colour::fromFloatRGBA (0.20f + 0.78f * v, 0.25f + 0.74f * v, 0.28f + 0.72f * v, 1.0f));
+            g.fillPath (wedge);
         }
-        // soft specular glow, top left
-        g.setGradientFill (ColourGradient (Colours::white.withAlpha (0.55f), cx - fr * 0.45f, cy - fr * 0.55f,
-                                           Colours::transparentWhite, cx, cy + fr * 0.2f, true));
+        // fine brushed rings
+        for (float q = 1.0f; q < fr; q += 1.1f)
+        {
+            g.setColour (((int) (q * 11.0f) % 3 == 0 ? Colours::white : Colours::black).withAlpha (0.045f));
+            g.drawEllipse (cx - q, cy - q, q * 2.0f, q * 2.0f, 0.5f);
+        }
+        // darker edge so the cap looks domed
+        g.setGradientFill (ColourGradient (Colours::transparentBlack, cx, cy,
+                                           Colours::black.withAlpha (0.35f), cx + fr, cy, true));
+        g.fillEllipse (face);
+        // sharp glint (crescent) top left
+        Path glint;
+        glint.addCentredArc (cx, cy, fr * 0.86f, fr * 0.86f, 0.0f, -2.5f, -1.2f, true);
+        g.setColour (Colours::white.withAlpha (0.9f));
+        g.strokePath (glint, PathStrokeType (fr * 0.07f, PathStrokeType::curved, PathStrokeType::rounded));
+        // bright soft spot
+        g.setGradientFill (ColourGradient (Colours::white.withAlpha (0.55f), cx - fr * 0.35f, cy - fr * 0.45f,
+                                           Colours::transparentWhite, cx - fr * 0.35f + fr * 0.6f, cy - fr * 0.45f, true));
         g.fillEllipse (face);
         g.restoreState();
 
+        g.setColour (Colours::white.withAlpha (0.8f));
+        g.drawEllipse (face.reduced (0.5f), 0.8f);
         g.setColour (Colour (0xff1c2427).withAlpha (0.8f));
         g.drawEllipse (face, 1.0f);
     }
@@ -125,8 +147,12 @@ public:
         Path p;
         p.addRoundedRectangle (r, cr);
         DropShadow (Colours::black.withAlpha (0.5f), 6, { 0, down ? 1 : 3 }).drawForPath (g, p);
-        g.setGradientFill (ColourGradient (down ? Colour (0xff9aa8ae) : Colour (0xfff0f5f7), 0, r.getY(),
-                                           Colour (0xff68767c), 0, r.getBottom(), false));
+        ColourGradient chrome (down ? Colour (0xffb8c4c9) : Colour (0xfffbfdfe), 0, r.getY(),
+                               Colour (0xffdbe5e9), 0, r.getBottom(), false);
+        chrome.addColour (0.48, Colour (0xff8a9aa1));
+        chrome.addColour (0.52, Colour (0xff3d4a50));
+        chrome.addColour (0.75, Colour (0xff9fb1b8));
+        g.setGradientFill (chrome);
         g.fillPath (p);
         g.saveState();
         g.reduceClipRegion (p);
@@ -138,8 +164,8 @@ public:
                 g.drawHorizontalLine ((int) yy, r.getX(), r.getRight());
             }
         }
-        g.setColour (Colours::white.withAlpha (0.3f));
-        g.fillRect (r.withHeight (r.getHeight() * 0.45f));
+        g.setColour (Colours::white.withAlpha (0.55f));
+        g.fillRoundedRectangle (r.reduced (cr * 0.5f, 2.0f).withHeight (r.getHeight() * 0.22f), 4.0f);
         g.restoreState();
         g.setColour (Colour (0xff1c2427).withAlpha (0.8f));
         g.drawRoundedRectangle (r, cr, 1.0f);
@@ -154,7 +180,7 @@ public:
     {
         using namespace juce;
         auto r = Rectangle<float> (0.0f, 0.0f, (float) w, (float) h).reduced (0.5f);
-        g.setGradientFill (ColourGradient (Colour (0x66021c20), 0, r.getY(), Colour (0x33021c20), 0, r.getBottom(), false));
+        g.setGradientFill (ColourGradient (Colour (0x33021c20), 0, r.getY(), Colour (0x14021c20), 0, r.getBottom(), false));
         g.fillRoundedRectangle (r, 6.0f);
         g.setColour (Colours::white.withAlpha (0.35f));
         g.drawRoundedRectangle (r, 6.0f, 1.0f);

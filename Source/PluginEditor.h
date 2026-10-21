@@ -2,6 +2,7 @@
 
 #include "PluginProcessor.h"
 #include "GlassLookAndFeel.h"
+#include "GoatBranding.h"
 
 class GigGoatEditor : public juce::AudioProcessorEditor,
                       private juce::Timer

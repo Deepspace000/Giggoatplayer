@@ -1,4 +1,4 @@
-# Gig Goat Player
+# Goat GiG Player
 
 A VST3 instrument that plays **.gig** sample files (GigaStudio / Gigasampler format),
 for example the Vienna orchestral instruments. Made for Windows and Reason 14.
@@ -16,16 +16,17 @@ It reads the files with [libgig](https://www.linuxsampler.org/libgig/) and uses
 
 The zip has:
 
-- `Gig Goat Player.vst3` (the plugin)
-- `Gig Goat Player.exe` (a stand-alone version, handy for a quick test with a MIDI keyboard)
+- `Goat GiG Player.vst3` (the plugin)
+- `Goat GiG Player.exe` (a stand-alone version, handy for a quick test with a MIDI keyboard)
+- `Orchestra of Goats GiG Player.vst3` and `.exe` (the multi-part version, see below)
 
 ## Install in Reason 14
 
-1. Copy the whole **Gig Goat Player.vst3** folder into
+1. Copy the whole **Goat GiG Player.vst3** folder into
    `C:\Program Files\Common Files\VST3`
 2. Start Reason. If the plugin does not show up, open Reason's Preferences,
    find the Plugins page, and scan for plugins again.
-3. Add **Gig Goat Player** as an instrument.
+3. Add **Goat GiG Player** as an instrument.
 
 ## Use it
 
@@ -120,3 +121,16 @@ The plugin appears in `build\GigGoatPlayer_artefacts\Release\VST3\`.
 JUCE 8 is AGPLv3 and libgig is GPL. This project is meant for your own use. If you give the
 plugin to other people, give them the source code too.
 Your sample libraries have their own licence from their makers.
+
+## Orchestra of Goats GiG Player
+
+A second plugin with up to 16 load bays. Press **+ Add part** and the window grows by one bay
+(it scrolls when there are many). Every bay has its own:
+
+- **Open .gig** button, instrument list and arrows
+- **Volume**, **Pan** and **Fine pitch** (+/- 100 cents). Double-click a knob to reset it
+- **MIDI ch**: *All* plays the bay from every MIDI channel. Pick a channel (1-16) to make the
+  bay answer only that channel, so one MIDI source can play a whole orchestra
+
+All the knobs can be automated from the host. The song remembers every bay's file and instrument.
+Each bay keeps its own sample RAM, so many big libraries use a lot of memory.
