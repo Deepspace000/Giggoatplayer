@@ -1,6 +1,7 @@
 #pragma once
 
 #include "PluginProcessor.h"
+#include "GlassLookAndFeel.h"
 
 class GigGoatEditor : public juce::AudioProcessorEditor,
                       private juce::Timer
@@ -18,6 +19,8 @@ private:
     void syncInstrumentList (const gigeng::GigEngine::Status&);
 
     GigGoatProcessor& proc;
+    GlassLookAndFeel glassLook;
+    juce::Image grain;
 
     juce::TextButton openButton { "Open .gig file..." };
     juce::TextButton prevButton { "<" };
