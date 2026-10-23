@@ -48,12 +48,8 @@ public:
         label.setColour (juce::Label::outlineColourId, juce::Colour (0xff3b7f86));
         label.onTextChange = [this] { set (parse (label.getText())); };
         addAndMakeVisible (label);
-        for (auto* b : { &down, &up })
-        {
-            b->setConnectedEdges (0);
-            b->setTriggeredOnMouseDown (false);
-            addAndMakeVisible (*b);
-        }
+        addAndMakeVisible (up);
+        addAndMakeVisible (down);
         down.onClick = [this] { set (value() - 1); };
         up.onClick   = [this] { set (value() + 1); };
         attachment.sendInitialUpdate();
@@ -62,8 +58,9 @@ public:
     void resized() override
     {
         auto r = getLocalBounds();
-        down.setBounds (r.removeFromLeft (24));
-        up.setBounds (r.removeFromRight (24));
+        auto arrows = r.removeFromRight (22);
+        up.setBounds (arrows.removeFromTop (arrows.getHeight() / 2).reduced (2, 1));
+        down.setBounds (arrows.reduced (2, 1));
         label.setBounds (r.reduced (1, 0));
     }
 
@@ -86,7 +83,7 @@ private:
     juce::RangedAudioParameter& param;
     std::function<juce::String (int)> format;
     std::function<int (const juce::String&)> parse;
-    juce::TextButton down { "-" }, up { "+" };
+    juce::ArrowButton up { "up", 0.75f, juce::Colour (0xffd8f6f2) }, down { "down", 0.25f, juce::Colour (0xffd8f6f2) };
     juce::Label label;
     juce::ParameterAttachment attachment;
 };
@@ -152,7 +149,7 @@ public:
     void mouseUp (const juce::MouseEvent&) override;
 
 private:
-    enum class Grab { none, low, high, both };
+    enum class Grab { none, low, high, both, sweep };
 
     float noteToX (int note) const;
     int xToNote (float x) const;
@@ -166,6 +163,7 @@ private:
     int dragLane = -1;
     Grab grab = Grab::none;
     int grabOffset = 0;
+    int selected = 0;          // the part the keyboard strip edits
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (RangeMap)
 };

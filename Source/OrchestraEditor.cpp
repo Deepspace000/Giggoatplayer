@@ -355,6 +355,7 @@ RangeMap::Grab RangeMap::hitTest (const juce::MouseEvent& e, int lane) const
 
 void RangeMap::mouseMove (const juce::MouseEvent& e)
 {
+    if (e.y >= kMapTop && e.y < kMapTop + kMapRuler) { setMouseCursor (juce::MouseCursor::CrosshairCursor); return; }
     const int lane = laneAt (e.y);
     if (lane < 0) { setMouseCursor (juce::MouseCursor::NormalCursor); return; }
     const auto g = hitTest (e, lane);
@@ -364,8 +365,19 @@ void RangeMap::mouseMove (const juce::MouseEvent& e)
 
 void RangeMap::mouseDown (const juce::MouseEvent& e)
 {
+    if (e.y >= kMapTop && e.y < kMapTop + kMapRuler)
+    {
+        // drag across the keyboard to draw the selected part's range
+        dragLane = juce::jmin (selected, proc.getNumBays() - 1);
+        grab = Grab::sweep;
+        grabOffset = xToNote ((float) e.x);          // where the sweep started
+        gestures (dragLane, true);
+        mouseDrag (e);
+        return;
+    }
     dragLane = laneAt (e.y);
     if (dragLane < 0) return;
+    selected = dragLane;
     grab = hitTest (e, dragLane);
     grabOffset = xToNote ((float) e.x) - getValue ("lo", dragLane);
     gestures (dragLane, true);
@@ -378,7 +390,12 @@ void RangeMap::mouseDrag (const juce::MouseEvent& e)
     const int note = xToNote ((float) e.x);
     const int lo = getValue ("lo", dragLane), hi = getValue ("hi", dragLane);
 
-    if (grab == Grab::low)       setValue ("lo", dragLane, std::min (note, hi));
+    if (grab == Grab::sweep)
+    {
+        setValue ("lo", dragLane, std::min (grabOffset, note));
+        setValue ("hi", dragLane, std::max (grabOffset, note));
+    }
+    else if (grab == Grab::low)  setValue ("lo", dragLane, std::min (note, hi));
     else if (grab == Grab::high) setValue ("hi", dragLane, std::max (note, lo));
     else if (grab == Grab::both)
     {
@@ -414,12 +431,26 @@ void RangeMap::paint (juce::Graphics& g)
         g.fillRect ((float) kMapSide, (float) (lanesTop + i * laneH), noteToX (128) - (float) kMapSide, (float) laneH);
     }
 
+    // the selected part is the one the keyboard strip edits
+    const int sel = juce::jmin (selected, bays - 1);
+    if (sel >= 0)
+    {
+        g.setColour (juce::Colours::white.withAlpha (0.10f));
+        g.fillRect ((float) kMapSide, (float) (lanesTop + sel * laneH), noteToX (128) - (float) kMapSide, (float) laneH);
+    }
+
     // keyboard strip with octave lines
     for (int n = 0; n < 128; ++n)
     {
         const bool black = isBlackKey (n);
         g.setColour (black ? juce::Colour (0xff10383d) : juce::Colour (0xffdcecec));
         g.fillRect (noteToX (n), (float) kMapTop, keyW - 0.6f, black ? kMapRuler * 0.6f : (float) kMapRuler - 2.0f);
+    }
+    if (sel >= 0)
+    {
+        const int lo = getValue ("lo", sel), hi = getValue ("hi", sel);
+        g.setColour (partColour (sel).withAlpha (0.55f));
+        g.fillRect (noteToX (lo), (float) kMapTop, noteToX (hi + 1) - noteToX (lo), (float) kMapRuler - 2.0f);
     }
     g.setFont (juce::FontOptions (9.0f));
     for (int n = 0; n < 128; n += 12)
