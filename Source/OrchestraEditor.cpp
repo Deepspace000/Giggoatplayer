@@ -126,6 +126,9 @@ BayStrip::BayStrip (OrchestraProcessor& p, int bayIndex)
         return t.startsWithIgnoreCase ("L") ? -n : t.startsWithIgnoreCase ("R") ? n : 0.0;
     };
 
+    // a small magnetic stop at the middle so centre is easy to find
+    pan.onValueChange = [this] { if (pan.getValue() != 0.0 && std::abs (pan.getValue()) < 0.03) pan.setValue (0.0); };
+    fine.onValueChange = [this] { if (fine.getValue() != 0.0 && std::abs (fine.getValue()) < 3.0) fine.setValue (0.0); };
     pan.updateText();
     channelL.setText ("MIDI ch", juce::dontSendNotification);
     channelL.setJustificationType (juce::Justification::centred);

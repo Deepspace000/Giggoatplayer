@@ -91,7 +91,7 @@ public:
     }
 
     void drawRotarySlider (juce::Graphics& g, int x, int y, int w, int h, float pos,
-                           float startAngle, float endAngle, juce::Slider&) override
+                           float startAngle, float endAngle, juce::Slider& slider) override
     {
         using namespace juce;
         auto b = Rectangle<float> ((float) x, (float) y, (float) w, (float) h).reduced (4.0f);
@@ -103,7 +103,11 @@ public:
         const float ringR = rad - 2.0f;
         Path track, val;
         track.addCentredArc (cx, cy, ringR, ringR, 0.0f, startAngle, endAngle, true);
-        val.addCentredArc (cx, cy, ringR, ringR, 0.0f, startAngle, angle, true);
+        // knobs that go both ways (pan, fine pitch) light up from the middle, not from the left
+        const bool bipolar = slider.getMinimum() < 0.0 && std::abs (slider.getMinimum() + slider.getMaximum()) < 1.0e-6;
+        const float mid = (startAngle + endAngle) * 0.5f;
+        if (bipolar) { if (std::abs (angle - mid) > 0.01f) val.addCentredArc (cx, cy, ringR, ringR, 0.0f, mid, angle, true); }
+        else         val.addCentredArc (cx, cy, ringR, ringR, 0.0f, startAngle, angle, true);
         g.setColour (Colour (0x66021c20));
         g.strokePath (track, PathStrokeType (4.0f, PathStrokeType::curved, PathStrokeType::rounded));
         g.setColour (Colour (0x556ff3e6));
