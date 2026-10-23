@@ -43,6 +43,8 @@ public:
     void openFile (int bay, const juce::File& file);
     void chooseInstrument (int bay, int index);
     juce::File getFile (int bay) const { return files[bay]; }
+    juce::String getBayName (int bay) const { return bayNames[bay]; }
+    void setBayName (int bay, const juce::String& n) { bayNames[bay] = n; }
     void setPreloadFrames (int frames);
     int  getPreloadFrames() const { return preloadFrames; }
 
@@ -56,6 +58,7 @@ private:
     std::atomic<gigeng::GigEngine*> engines[kMaxBays] = {};
     std::unique_ptr<gigeng::GigEngine> owned[kMaxBays];
     juce::File files[kMaxBays];
+    juce::String bayNames[kMaxBays];
     int instruments[kMaxBays] = {};
     std::atomic<int> numBays { 1 };
     int preloadFrames = 32768;
@@ -65,11 +68,13 @@ private:
     int blockSize = 512;
 
     juce::AudioBuffer<float> scratch;
-    float lastPanL[kMaxBays], lastPanR[kMaxBays];
+    float lastPanL[kMaxBays], lastPanR[kMaxBays], lastGate[kMaxBays];
     std::atomic<float>* pVol[kMaxBays] = {};
     std::atomic<float>* pPan[kMaxBays] = {};
     std::atomic<float>* pFine[kMaxBays] = {};
     std::atomic<float>* pCh[kMaxBays] = {};
+    std::atomic<float>* pMute[kMaxBays] = {};
+    std::atomic<float>* pSolo[kMaxBays] = {};
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (OrchestraProcessor)
 };

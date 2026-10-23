@@ -12,7 +12,9 @@ OrchestraProcessor::OrchestraProcessor()
         pPan[i]  = apvts.getRawParameterValue ("pan" + n);
         pFine[i] = apvts.getRawParameterValue ("fine" + n);
         pCh[i]   = apvts.getRawParameterValue ("ch" + n);
-        lastPanL[i] = lastPanR[i] = 1.0f;
+        pMute[i] = apvts.getRawParameterValue ("mute" + n);
+        pSolo[i] = apvts.getRawParameterValue ("solo" + n);
+        lastPanL[i] = lastPanR[i] = lastGate[i] = 1.0f;
     }
     scratch.setSize (2, blockSize);
     ensureEngine (0);
@@ -39,6 +41,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout OrchestraProcessor::createLa
                                                             NormalisableRange<float> (-100.0f, 100.0f, 0.1f), 0.0f));
         p.push_back (std::make_unique<AudioParameterChoice> (ParameterID { "ch" + n, 1 }, part + "MIDI channel",
                                                              channels, 0));
+        p.push_back (std::make_unique<AudioParameterBool> (ParameterID { "mute" + n, 1 }, part + "Mute", false));
+        p.push_back (std::make_unique<AudioParameterBool> (ParameterID { "solo" + n, 1 }, part + "Solo", false));
     }
     return { p.begin(), p.end() };
 }
@@ -81,6 +85,10 @@ void OrchestraProcessor::renderChunk (float* left, float* right, int n, int nb)
     float* sl = scratch.getWritePointer (0);
     float* sr = scratch.getWritePointer (1);
 
+    bool anySolo = false;
+    for (int i = 0; i < nb; ++i)
+        if (pSolo[i]->load() > 0.5f) anySolo = true;
+
     for (int i = 0; i < nb; ++i)
     {
         auto* eng = getEngine (i);
@@ -94,15 +102,19 @@ void OrchestraProcessor::renderChunk (float* left, float* right, int n, int nb)
         const float pan = pPan[i]->load();
         const float tl = pan > 0.0f ? std::cos (pan * juce::MathConstants<float>::halfPi) : 1.0f;
         const float tr = pan < 0.0f ? std::cos (-pan * juce::MathConstants<float>::halfPi) : 1.0f;
+        // mute / solo: still rendered (so voices keep running) but faded out of the mix
+        const bool audible = anySolo ? pSolo[i]->load() > 0.5f : pMute[i]->load() < 0.5f;
+        const float gate = audible ? 1.0f : 0.0f;
         const float dl = (tl - lastPanL[i]) / (float) n, dr = (tr - lastPanR[i]) / (float) n;
-        float gl = lastPanL[i], gr = lastPanR[i];
+        const float dg = (gate - lastGate[i]) / (float) n;
+        float gl = lastPanL[i], gr = lastPanR[i], gg = lastGate[i];
         for (int s = 0; s < n; ++s)
         {
-            gl += dl; gr += dr;
-            left[s]  += sl[s] * gl;
-            right[s] += sr[s] * gr;
+            gl += dl; gr += dr; gg += dg;
+            left[s]  += sl[s] * gl * gg;
+            right[s] += sr[s] * gr * gg;
         }
-        lastPanL[i] = tl; lastPanR[i] = tr;
+        lastPanL[i] = tl; lastPanR[i] = tr; lastGate[i] = gate;
     }
 }
 
@@ -204,6 +216,7 @@ void OrchestraProcessor::getStateInformation (juce::MemoryBlock& destData)
     {
         state.setProperty ("gigPath" + juce::String (i), files[i].getFullPathName(), nullptr);
         state.setProperty ("gigInstrument" + juce::String (i), instruments[i], nullptr);
+        state.setProperty ("bayName" + juce::String (i), bayNames[i], nullptr);
     }
     if (auto xml = state.createXml())
         copyXmlToBinary (*xml, destData);
@@ -225,6 +238,7 @@ void OrchestraProcessor::setStateInformation (const void* data, int sizeInBytes)
     for (int i = 0; i < n; ++i)
     {
         instruments[i] = (int) state.getProperty ("gigInstrument" + juce::String (i), 0);
+        bayNames[i] = state.getProperty ("bayName" + juce::String (i), "").toString();
         const juce::File f (state.getProperty ("gigPath" + juce::String (i), "").toString());
         if (f.existsAsFile())
         {

@@ -33,8 +33,27 @@ BayStrip::BayStrip (OrchestraProcessor& p, int bayIndex)
       volumeA (p.apvts, "vol" + juce::String (bayIndex), volume),
       panA    (p.apvts, "pan" + juce::String (bayIndex), pan),
       fineA   (p.apvts, "fine" + juce::String (bayIndex), fine),
-      channelA (p.apvts, "ch" + juce::String (bayIndex), primeChannelBox (channelBox))
+      channelA (p.apvts, "ch" + juce::String (bayIndex), primeChannelBox (channelBox)),
+      muteA (p.apvts, "mute" + juce::String (bayIndex), muteButton),
+      soloA (p.apvts, "solo" + juce::String (bayIndex), soloButton)
 {
+    addAndMakeVisible (nameEditor);
+    nameEditor.setTextToShowWhenEmpty ("Name...", juce::Colour (0xff7fb5b0));
+    nameEditor.setText (proc.getBayName (bay), false);
+    nameEditor.setSelectAllWhenFocused (true);
+    nameEditor.setFont (juce::FontOptions (14.0f));
+    nameEditor.onTextChange = [this] { proc.setBayName (bay, nameEditor.getText()); };
+    nameEditor.onReturnKey = [this] { nameEditor.giveAwayKeyboardFocus(); };
+
+    muteButton.setClickingTogglesState (true);
+    soloButton.setClickingTogglesState (true);
+    muteButton.setColour (juce::TextButton::buttonOnColourId, juce::Colour (0xffd9534f));
+    soloButton.setColour (juce::TextButton::buttonOnColourId, juce::Colour (0xffe8c34a));
+    muteButton.setTooltip ("Mute this part");
+    soloButton.setTooltip ("Solo this part");
+    addAndMakeVisible (muteButton);
+    addAndMakeVisible (soloButton);
+
     addAndMakeVisible (openButton);
     addAndMakeVisible (prevButton);
     addAndMakeVisible (nextButton);
@@ -147,7 +166,7 @@ void BayStrip::paint (juce::Graphics& g)
     goatbrand::drawGlassPanel (g, getLocalBounds().toFloat().reduced (2.0f), 12.0f);
 
     // numbered steel badge
-    auto badge = juce::Rectangle<float> (12.0f, (float) getHeight() * 0.5f - 15.0f, 30.0f, 30.0f);
+    auto badge = juce::Rectangle<float> (16.0f, 12.0f, 30.0f, 30.0f);
     GlassLookAndFeel::drawSteelDisc (g, badge, false);
     g.setColour (juce::Colour (0xff10383d));
     g.setFont (juce::FontOptions (15.0f, juce::Font::bold));
@@ -157,13 +176,21 @@ void BayStrip::paint (juce::Graphics& g)
 void BayStrip::resized()
 {
     auto area = getLocalBounds().reduced (6);
-    area.removeFromLeft (44);
+    {
+        auto col = area.removeFromLeft (62);
+        col.removeFromTop (44);
+        auto ms = col.removeFromTop (26);
+        muteButton.setBounds (ms.removeFromLeft (28));
+        soloButton.setBounds (ms.removeFromRight (28));
+    }
 
     auto knobs = area.removeFromRight (3 * 78 + 66);
     auto left = area.reduced (0, 4);
 
     auto row = left.removeFromTop (26);
     openButton.setBounds (row.removeFromLeft (118));
+    row.removeFromLeft (8);
+    nameEditor.setBounds (row.removeFromLeft (170));
     row.removeFromLeft (8);
     fileLabel.setBounds (row);
 

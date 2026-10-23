@@ -30,12 +30,15 @@ private:
     juce::TextButton openButton { "Open .gig..." };
     juce::TextButton prevButton { "<" };
     juce::TextButton nextButton { ">" };
+    juce::TextEditor nameEditor;
+    juce::TextButton muteButton { "M" }, soloButton { "S" };
     juce::Label fileLabel, statusLabel, volumeL, panL, fineL, channelL;
     juce::ComboBox instrumentBox, channelBox;
     juce::Slider volume, pan, fine;
 
     juce::AudioProcessorValueTreeState::SliderAttachment volumeA, panA, fineA;
     juce::AudioProcessorValueTreeState::ComboBoxAttachment channelA;
+    juce::AudioProcessorValueTreeState::ButtonAttachment muteA, soloA;
 
     std::unique_ptr<juce::FileChooser> chooser;
     std::vector<std::string> shownInstruments;

@@ -129,6 +129,8 @@ A second plugin with up to 16 load bays. Press **+ Add part** and the window gro
 
 - **Open .gig** button, instrument list and arrows
 - **Volume**, **Pan** and **Fine pitch** (+/- 100 cents). Double-click a knob to reset it
+- **Name** box: type a name for the part (saved with the song)
+- **M** (mute) and **S** (solo) buttons. If any part is soloed, only the soloed parts are heard
 - **MIDI ch**: *All* plays the bay from every MIDI channel. Pick a channel (1-16) to make the
   bay answer only that channel, so one MIDI source can play a whole orchestra
 
