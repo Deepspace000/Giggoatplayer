@@ -38,14 +38,6 @@ int noteFromText (const juce::String& t)
     return juce::jlimit (0, 127, (s.substring (i).getIntValue() + 1) * 12 + n);
 }
 
-void setupSpin (juce::Component& parent, juce::Slider& s)
-{
-    s.setSliderStyle (juce::Slider::IncDecButtons);
-    s.setIncDecButtonsMode (juce::Slider::incDecButtonsDraggable_Vertical);
-    s.setTextBoxStyle (juce::Slider::TextBoxLeft, false, 44, 22);
-    parent.addAndMakeVisible (s);
-}
-
 juce::ComboBox& primeChannelBox (juce::ComboBox& box)
 {
     box.addItem ("All", 1);
@@ -62,27 +54,17 @@ BayStrip::BayStrip (OrchestraProcessor& p, int bayIndex)
       fineA   (p.apvts, "fine" + juce::String (bayIndex), fine),
       channelA (p.apvts, "ch" + juce::String (bayIndex), primeChannelBox (channelBox)),
       muteA (p.apvts, "mute" + juce::String (bayIndex), muteButton),
-      soloA (p.apvts, "solo" + juce::String (bayIndex), soloButton),
-      octA (p.apvts, "oct" + juce::String (bayIndex), octave),
-      loA (p.apvts, "lo" + juce::String (bayIndex), lowKey),
-      hiA (p.apvts, "hi" + juce::String (bayIndex), highKey)
+      soloA (p.apvts, "solo" + juce::String (bayIndex), soloButton)
 {
     addAndMakeVisible (meterBar);
-    setupSpin (*this, octave);
-    setupSpin (*this, lowKey);
-    setupSpin (*this, highKey);
-    octave.setTextBoxStyle (juce::Slider::TextBoxLeft, false, 34, 22);
-    octave.textFromValueFunction = [] (double v) { return (v > 0 ? "+" : "") + juce::String ((int) v); };
-    octave.valueFromTextFunction = [] (const juce::String& t) { return (double) t.getIntValue(); };
-    for (auto* s : { &lowKey, &highKey })
-    {
-        s->textFromValueFunction = [] (double v) { return noteName ((int) v); };
-        s->valueFromTextFunction = [] (const juce::String& t) { return (double) noteFromText (t); };
-    }
-    octave.updateText(); lowKey.updateText(); highKey.updateText();
-    octave.setTooltip ("Shift this part up or down by octaves");
-    lowKey.setTooltip ("Lowest key this part answers to");
-    highKey.setTooltip ("Highest key this part answers to");
+    auto param = [&] (const char* id) { return p.apvts.getParameter (id + juce::String (bayIndex)); };
+    octave = std::make_unique<Spinner> (*param ("oct"),
+                                        [] (int v) { return (v > 0 ? "+" : "") + juce::String (v); },
+                                        [] (const juce::String& t) { return t.getIntValue(); });
+    lowKey = std::make_unique<Spinner> (*param ("lo"), noteName, noteFromText);
+    highKey = std::make_unique<Spinner> (*param ("hi"), noteName, noteFromText);
+    for (auto* sp : { octave.get(), lowKey.get(), highKey.get() })
+        addAndMakeVisible (*sp);
     for (auto* l : { &octaveL, &rangeL, &toL })
     {
         l->setFont (juce::FontOptions (12.0f));
@@ -268,12 +250,12 @@ void BayStrip::resized()
     left.removeFromTop (6);
     row = left.removeFromTop (26);
     octaveL.setBounds (row.removeFromLeft (44));
-    octave.setBounds (row.removeFromLeft (80));
+    octave->setBounds (row.removeFromLeft (84));
     row.removeFromLeft (14);
     rangeL.setBounds (row.removeFromLeft (40));
-    lowKey.setBounds (row.removeFromLeft (92));
+    lowKey->setBounds (row.removeFromLeft (96));
     toL.setBounds (row.removeFromLeft (20));
-    highKey.setBounds (row.removeFromLeft (92));
+    highKey->setBounds (row.removeFromLeft (96));
 
     auto chCol = knobs.removeFromRight (62);
     channelL.setBounds (chCol.removeFromTop (16).withTrimmedTop (0));

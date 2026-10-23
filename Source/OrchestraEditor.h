@@ -30,6 +30,67 @@ private:
     float shown = 0.0f;
 };
 
+// A whole-number control for a parameter: [-] [editable text] [+]. Click the buttons,
+// click the text and type, or use the mouse wheel.
+class Spinner : public juce::Component
+{
+public:
+    Spinner (juce::RangedAudioParameter& p,
+             std::function<juce::String (int)> toText,
+             std::function<int (const juce::String&)> fromText)
+        : param (p), format (std::move (toText)), parse (std::move (fromText)),
+          attachment (p, [this] (float v) { show ((int) std::lround (v)); })
+    {
+        label.setEditable (true, false, false);        // a single click starts typing
+        label.setJustificationType (juce::Justification::centred);
+        label.setColour (juce::Label::textColourId, juce::Colours::white);
+        label.setColour (juce::Label::backgroundColourId, juce::Colour (0xff0d2b2e));
+        label.setColour (juce::Label::outlineColourId, juce::Colour (0xff3b7f86));
+        label.onTextChange = [this] { set (parse (label.getText())); };
+        addAndMakeVisible (label);
+        for (auto* b : { &down, &up })
+        {
+            b->setConnectedEdges (0);
+            b->setTriggeredOnMouseDown (false);
+            addAndMakeVisible (*b);
+        }
+        down.onClick = [this] { set (value() - 1); };
+        up.onClick   = [this] { set (value() + 1); };
+        attachment.sendInitialUpdate();
+    }
+
+    void resized() override
+    {
+        auto r = getLocalBounds();
+        down.setBounds (r.removeFromLeft (24));
+        up.setBounds (r.removeFromRight (24));
+        label.setBounds (r.reduced (1, 0));
+    }
+
+    void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails& w) override
+    {
+        if (w.deltaY != 0.0f) set (value() + (w.deltaY > 0.0f ? 1 : -1));
+    }
+
+private:
+    int value() const { return (int) std::lround (param.convertFrom0to1 (param.getValue())); }
+    void show (int v) { label.setText (format (v), juce::dontSendNotification); }
+    void set (int v)
+    {
+        const auto& range = param.getNormalisableRange();
+        v = juce::jlimit ((int) range.start, (int) range.end, v);
+        attachment.setValueAsCompleteGesture ((float) v);
+        show (v);                                        // also puts back the text if the typing was junk
+    }
+
+    juce::RangedAudioParameter& param;
+    std::function<juce::String (int)> format;
+    std::function<int (const juce::String&)> parse;
+    juce::TextButton down { "-" }, up { "+" };
+    juce::Label label;
+    juce::ParameterAttachment attachment;
+};
+
 // One load bay: file, instrument, volume, pan, fine pitch and MIDI channel.
 class BayStrip : public juce::Component
 {
@@ -57,7 +118,7 @@ private:
     juce::TextButton prevButton { "<" };
     juce::TextButton nextButton { ">" };
     LevelMeter meterBar;
-    juce::Slider octave, lowKey, highKey;
+    std::unique_ptr<Spinner> octave, lowKey, highKey;
     juce::Label octaveL, rangeL, toL;
     juce::TextEditor nameEditor;
     juce::TextButton muteButton { "M" }, soloButton { "S" };
@@ -68,7 +129,6 @@ private:
     juce::AudioProcessorValueTreeState::SliderAttachment volumeA, panA, fineA;
     juce::AudioProcessorValueTreeState::ComboBoxAttachment channelA;
     juce::AudioProcessorValueTreeState::ButtonAttachment muteA, soloA;
-    juce::AudioProcessorValueTreeState::SliderAttachment octA, loA, hiA;
 
     std::unique_ptr<juce::FileChooser> chooser;
     std::vector<std::string> shownInstruments;
