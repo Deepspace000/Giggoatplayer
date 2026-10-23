@@ -14,7 +14,11 @@ OrchestraProcessor::OrchestraProcessor()
         pCh[i]   = apvts.getRawParameterValue ("ch" + n);
         pMute[i] = apvts.getRawParameterValue ("mute" + n);
         pSolo[i] = apvts.getRawParameterValue ("solo" + n);
+        pOct[i]  = apvts.getRawParameterValue ("oct" + n);
+        pLo[i]   = apvts.getRawParameterValue ("lo" + n);
+        pHi[i]   = apvts.getRawParameterValue ("hi" + n);
         lastPanL[i] = lastPanR[i] = lastGate[i] = 1.0f;
+        std::fill (noteMap[i], noteMap[i] + 128, -1);
     }
     scratch.setSize (2, blockSize);
     ensureEngine (0);
@@ -43,6 +47,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout OrchestraProcessor::createLa
                                                              channels, 0));
         p.push_back (std::make_unique<AudioParameterBool> (ParameterID { "mute" + n, 1 }, part + "Mute", false));
         p.push_back (std::make_unique<AudioParameterBool> (ParameterID { "solo" + n, 1 }, part + "Solo", false));
+        p.push_back (std::make_unique<AudioParameterInt> (ParameterID { "oct" + n, 1 }, part + "Octave", -4, 4, 0));
+        p.push_back (std::make_unique<AudioParameterInt> (ParameterID { "lo" + n, 1 }, part + "Lowest key", 0, 127, 0));
+        p.push_back (std::make_unique<AudioParameterInt> (ParameterID { "hi" + n, 1 }, part + "Highest key", 0, 127, 127));
     }
     return { p.begin(), p.end() };
 }
@@ -107,13 +114,16 @@ void OrchestraProcessor::renderChunk (float* left, float* right, int n, int nb)
         const float gate = audible ? 1.0f : 0.0f;
         const float dl = (tl - lastPanL[i]) / (float) n, dr = (tr - lastPanR[i]) / (float) n;
         const float dg = (gate - lastGate[i]) / (float) n;
-        float gl = lastPanL[i], gr = lastPanR[i], gg = lastGate[i];
+        float gl = lastPanL[i], gr = lastPanR[i], gg = lastGate[i], pk = 0.0f;
         for (int s = 0; s < n; ++s)
         {
             gl += dl; gr += dr; gg += dg;
-            left[s]  += sl[s] * gl * gg;
-            right[s] += sr[s] * gr * gg;
+            const float ol = sl[s] * gl * gg, orr = sr[s] * gr * gg;
+            left[s]  += ol;
+            right[s] += orr;
+            pk = std::max (pk, std::max (std::abs (ol), std::abs (orr)));
         }
+        if (pk > meter[i].load (std::memory_order_relaxed)) meter[i].store (pk, std::memory_order_relaxed);
         lastPanL[i] = tl; lastPanR[i] = tr; lastGate[i] = gate;
     }
 }
@@ -162,12 +172,26 @@ void OrchestraProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
             const int want = (int) (pCh[i]->load() + 0.5f);   // 0 = all
             if (want != 0 && channel != want) continue;
 
-            if (msg.isNoteOn())                e->noteOn (msg.getNoteNumber(), msg.getVelocity());
-            else if (msg.isNoteOff())          e->noteOff (msg.getNoteNumber());
+            if (msg.isNoteOn())
+            {
+                const int k = msg.getNoteNumber();
+                if (k >= (int) (pLo[i]->load() + 0.5f) && k <= (int) (pHi[i]->load() + 0.5f))
+                {
+                    const int t = juce::jlimit (0, 127, k + 12 * (int) std::lround (pOct[i]->load()));
+                    if (noteMap[i][k] >= 0) e->noteOff (noteMap[i][k]);
+                    noteMap[i][k] = t;
+                    e->noteOn (t, msg.getVelocity());
+                }
+            }
+            else if (msg.isNoteOff())
+            {
+                const int k = msg.getNoteNumber();
+                if (noteMap[i][k] >= 0) { e->noteOff (noteMap[i][k]); noteMap[i][k] = -1; }
+            }
             else if (msg.isController())       e->controller (msg.getControllerNumber(), msg.getControllerValue());
             else if (msg.isPitchWheel())       e->pitchBend (msg.getPitchWheelValue());
             else if (msg.isChannelPressure())  e->channelPressure (msg.getChannelPressureValue());
-            else if (msg.isAllNotesOff() || msg.isAllSoundOff()) e->allNotesOff();
+            else if (msg.isAllNotesOff() || msg.isAllSoundOff()) { e->allNotesOff(); std::fill (noteMap[i], noteMap[i] + 128, -1); }
         }
     }
     if (pos < numSamples) renderTo (pos, numSamples);

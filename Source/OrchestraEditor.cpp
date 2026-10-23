@@ -19,6 +19,33 @@ void setupKnob (juce::Component& parent, juce::Slider& s, juce::Label& l, const 
     parent.addAndMakeVisible (l);
 }
 
+juce::String noteName (int n)
+{
+    static const char* names[] = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
+    return juce::String (names[n % 12]) + juce::String (n / 12 - 1);   // 60 = C4
+}
+
+int noteFromText (const juce::String& t)
+{
+    auto s = t.trim().toUpperCase();
+    if (s.isNotEmpty() && s.containsOnly ("0123456789")) return juce::jlimit (0, 127, s.getIntValue());
+    static const int base[] = { 9, 11, 0, 2, 4, 5, 7 };   // A..G
+    if (s.isEmpty() || s[0] < 'A' || s[0] > 'G') return 60;
+    int n = base[s[0] - 'A'];
+    int i = 1;
+    if (i < s.length() && (s[i] == '#' || s[i] == 'S')) { ++n; ++i; }
+    else if (i < s.length() && s[i] == 'B') { --n; ++i; }
+    return juce::jlimit (0, 127, (s.substring (i).getIntValue() + 1) * 12 + n);
+}
+
+void setupSpin (juce::Component& parent, juce::Slider& s)
+{
+    s.setSliderStyle (juce::Slider::IncDecButtons);
+    s.setIncDecButtonsMode (juce::Slider::incDecButtonsDraggable_Vertical);
+    s.setTextBoxStyle (juce::Slider::TextBoxLeft, false, 44, 22);
+    parent.addAndMakeVisible (s);
+}
+
 juce::ComboBox& primeChannelBox (juce::ComboBox& box)
 {
     box.addItem ("All", 1);
@@ -35,8 +62,38 @@ BayStrip::BayStrip (OrchestraProcessor& p, int bayIndex)
       fineA   (p.apvts, "fine" + juce::String (bayIndex), fine),
       channelA (p.apvts, "ch" + juce::String (bayIndex), primeChannelBox (channelBox)),
       muteA (p.apvts, "mute" + juce::String (bayIndex), muteButton),
-      soloA (p.apvts, "solo" + juce::String (bayIndex), soloButton)
+      soloA (p.apvts, "solo" + juce::String (bayIndex), soloButton),
+      octA (p.apvts, "oct" + juce::String (bayIndex), octave),
+      loA (p.apvts, "lo" + juce::String (bayIndex), lowKey),
+      hiA (p.apvts, "hi" + juce::String (bayIndex), highKey)
 {
+    addAndMakeVisible (meterBar);
+    setupSpin (*this, octave);
+    setupSpin (*this, lowKey);
+    setupSpin (*this, highKey);
+    octave.setTextBoxStyle (juce::Slider::TextBoxLeft, false, 34, 22);
+    octave.textFromValueFunction = [] (double v) { return (v > 0 ? "+" : "") + juce::String ((int) v); };
+    octave.valueFromTextFunction = [] (const juce::String& t) { return (double) t.getIntValue(); };
+    for (auto* s : { &lowKey, &highKey })
+    {
+        s->textFromValueFunction = [] (double v) { return noteName ((int) v); };
+        s->valueFromTextFunction = [] (const juce::String& t) { return (double) noteFromText (t); };
+    }
+    octave.updateText(); lowKey.updateText(); highKey.updateText();
+    octave.setTooltip ("Shift this part up or down by octaves");
+    lowKey.setTooltip ("Lowest key this part answers to");
+    highKey.setTooltip ("Highest key this part answers to");
+    for (auto* l : { &octaveL, &rangeL, &toL })
+    {
+        l->setFont (juce::FontOptions (12.0f));
+        l->setColour (juce::Label::textColourId, juce::Colours::white);
+        addAndMakeVisible (*l);
+    }
+    octaveL.setText ("Octave", juce::dontSendNotification);
+    rangeL.setText ("Range", juce::dontSendNotification);
+    toL.setText ("to", juce::dontSendNotification);
+    toL.setJustificationType (juce::Justification::centred);
+
     addAndMakeVisible (nameEditor);
     nameEditor.setTextToShowWhenEmpty ("Name...", juce::Colour (0xff7fb5b0));
     nameEditor.setText (proc.getBayName (bay), false);
@@ -157,6 +214,7 @@ void BayStrip::refresh()
     if (st.loading) msg << "  " << juce::String (juce::roundToInt (st.progress * 100.0f)) << "%";
     statusLabel.setText (msg, juce::dontSendNotification);
 
+    meterBar.push (proc.takeMeter (bay));
     voices = st.activeVoices;
     ramMB = (double) st.ramBytes / (1024.0 * 1024.0);
 }
@@ -182,6 +240,8 @@ void BayStrip::resized()
         auto ms = col.removeFromTop (26);
         muteButton.setBounds (ms.removeFromLeft (28));
         soloButton.setBounds (ms.removeFromRight (28));
+        col.removeFromTop (8);
+        meterBar.setBounds (col.removeFromTop (10).withTrimmedRight (6));
     }
 
     auto knobs = area.removeFromRight (3 * 78 + 66);
@@ -204,6 +264,16 @@ void BayStrip::resized()
 
     left.removeFromTop (6);
     statusLabel.setBounds (left.removeFromTop (20));
+
+    left.removeFromTop (6);
+    row = left.removeFromTop (26);
+    octaveL.setBounds (row.removeFromLeft (44));
+    octave.setBounds (row.removeFromLeft (80));
+    row.removeFromLeft (14);
+    rangeL.setBounds (row.removeFromLeft (40));
+    lowKey.setBounds (row.removeFromLeft (92));
+    toL.setBounds (row.removeFromLeft (20));
+    highKey.setBounds (row.removeFromLeft (92));
 
     auto chCol = knobs.removeFromRight (62);
     channelL.setBounds (chCol.removeFromTop (16).withTrimmedTop (0));

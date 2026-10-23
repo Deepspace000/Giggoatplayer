@@ -48,6 +48,9 @@ public:
     void setPreloadFrames (int frames);
     int  getPreloadFrames() const { return preloadFrames; }
 
+    // peak since the editor last asked (audio thread raises it, editor reads and clears it)
+    float takeMeter (int bay) { return meter[bay].exchange (0.0f); }
+
     juce::AudioProcessorValueTreeState apvts;
 
 private:
@@ -75,6 +78,11 @@ private:
     std::atomic<float>* pCh[kMaxBays] = {};
     std::atomic<float>* pMute[kMaxBays] = {};
     std::atomic<float>* pSolo[kMaxBays] = {};
+    std::atomic<float>* pOct[kMaxBays] = {};
+    std::atomic<float>* pLo[kMaxBays] = {};
+    std::atomic<float>* pHi[kMaxBays] = {};
+    std::atomic<float> meter[kMaxBays] = {};
+    int noteMap[kMaxBays][128];      // played key -> key actually sent to the engine (-1 = not held)
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (OrchestraProcessor)
 };
