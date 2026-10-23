@@ -6,7 +6,7 @@ constexpr int kWidth = 780;
 constexpr int kHeader = 72;
 constexpr int kFooter = 58;
 constexpr int kGap = 6;
-constexpr int kMaxViewportHeight = 620;
+constexpr int kMaxViewportHeight = 420;
 
 void setupKnob (juce::Component& parent, juce::Slider& s, juce::Label& l, const juce::String& text)
 {
@@ -272,6 +272,203 @@ void BayStrip::resized()
 }
 
 // ===========================================================================
+namespace
+{
+constexpr int kMapSide = 14;          // space left and right of the keys
+constexpr int kMapTop = 5;
+constexpr int kMapRuler = 18;         // keyboard strip
+constexpr int kMapBottom = 6;
+
+int laneHeightFor (int bays) { return bays <= 6 ? 18 : bays <= 10 ? 13 : 9; }
+
+bool isBlackKey (int n)
+{
+    const int pc = n % 12;
+    return pc == 1 || pc == 3 || pc == 6 || pc == 8 || pc == 10;
+}
+
+juce::Colour partColour (int i)
+{
+    return juce::Colour::fromHSV (std::fmod (0.48f + 0.061f * (float) i, 1.0f), 0.55f, 0.95f, 1.0f);
+}
+}
+
+RangeMap::RangeMap (OrchestraProcessor& p) : proc (p) {}
+
+int RangeMap::heightFor (int bays)
+{
+    return kMapTop + kMapRuler + bays * laneHeightFor (bays) + kMapBottom;
+}
+
+float RangeMap::noteToX (int note) const
+{
+    const float w = (float) getWidth() - 2.0f * kMapSide;
+    return (float) kMapSide + w * (float) note / 128.0f;
+}
+
+int RangeMap::xToNote (float x) const
+{
+    const float w = (float) getWidth() - 2.0f * kMapSide;
+    return juce::jlimit (0, 127, (int) std::floor ((x - (float) kMapSide) / w * 128.0f));
+}
+
+int RangeMap::laneAt (int y) const
+{
+    const int n = proc.getNumBays();
+    const int lane = (y - kMapTop - kMapRuler) / laneHeightFor (n);
+    return (y >= kMapTop + kMapRuler && lane >= 0 && lane < n) ? lane : -1;
+}
+
+int RangeMap::getValue (const char* prefix, int lane) const
+{
+    return (int) (proc.apvts.getRawParameterValue (prefix + juce::String (lane))->load() + 0.5f);
+}
+
+void RangeMap::setValue (const char* prefix, int lane, int v)
+{
+    if (auto* p = proc.apvts.getParameter (prefix + juce::String (lane)))
+        p->setValueNotifyingHost (p->convertTo0to1 ((float) v));
+}
+
+void RangeMap::gestures (int lane, bool begin)
+{
+    for (const char* prefix : { "lo", "hi" })
+        if (auto* p = proc.apvts.getParameter (prefix + juce::String (lane)))
+        {
+            if (begin) p->beginChangeGesture(); else p->endChangeGesture();
+        }
+}
+
+RangeMap::Grab RangeMap::hitTest (const juce::MouseEvent& e, int lane) const
+{
+    const int lo = getValue ("lo", lane), hi = getValue ("hi", lane);
+    const float x = (float) e.x, xl = noteToX (lo), xr = noteToX (hi + 1);
+    const float dl = std::abs (x - xl), dr = std::abs (x - xr);
+    if (dl <= 7.0f && dl <= dr) return Grab::low;
+    if (dr <= 7.0f) return Grab::high;
+    if (x > xl && x < xr) return Grab::both;
+    return x < xl ? Grab::low : Grab::high;       // clicked beside the bar: pull the nearer end there
+}
+
+void RangeMap::mouseMove (const juce::MouseEvent& e)
+{
+    const int lane = laneAt (e.y);
+    if (lane < 0) { setMouseCursor (juce::MouseCursor::NormalCursor); return; }
+    const auto g = hitTest (e, lane);
+    setMouseCursor (g == Grab::both ? juce::MouseCursor::DraggingHandCursor
+                                    : juce::MouseCursor::LeftRightResizeCursor);
+}
+
+void RangeMap::mouseDown (const juce::MouseEvent& e)
+{
+    dragLane = laneAt (e.y);
+    if (dragLane < 0) return;
+    grab = hitTest (e, dragLane);
+    grabOffset = xToNote ((float) e.x) - getValue ("lo", dragLane);
+    gestures (dragLane, true);
+    mouseDrag (e);
+}
+
+void RangeMap::mouseDrag (const juce::MouseEvent& e)
+{
+    if (dragLane < 0) return;
+    const int note = xToNote ((float) e.x);
+    const int lo = getValue ("lo", dragLane), hi = getValue ("hi", dragLane);
+
+    if (grab == Grab::low)       setValue ("lo", dragLane, std::min (note, hi));
+    else if (grab == Grab::high) setValue ("hi", dragLane, std::max (note, lo));
+    else if (grab == Grab::both)
+    {
+        const int width = hi - lo;
+        const int newLo = juce::jlimit (0, 127 - width, note - grabOffset);
+        if (newLo > lo) { setValue ("hi", dragLane, newLo + width); setValue ("lo", dragLane, newLo); }
+        else            { setValue ("lo", dragLane, newLo); setValue ("hi", dragLane, newLo + width); }
+    }
+    repaint();
+}
+
+void RangeMap::mouseUp (const juce::MouseEvent&)
+{
+    if (dragLane >= 0) gestures (dragLane, false);
+    dragLane = -1;
+    grab = Grab::none;
+}
+
+void RangeMap::paint (juce::Graphics& g)
+{
+    goatbrand::drawGlassPanel (g, getLocalBounds().toFloat().reduced (1.0f), 12.0f);
+
+    const int bays = proc.getNumBays();
+    const int laneH = laneHeightFor (bays);
+    const float keyW = noteToX (1) - noteToX (0);
+    const int lanesTop = kMapTop + kMapRuler;
+    const float lanesBottom = (float) (lanesTop + bays * laneH);
+
+    // lane backgrounds
+    for (int i = 0; i < bays; ++i)
+    {
+        g.setColour (juce::Colour (i % 2 == 0 ? 0x30000000 : 0x18000000));
+        g.fillRect ((float) kMapSide, (float) (lanesTop + i * laneH), noteToX (128) - (float) kMapSide, (float) laneH);
+    }
+
+    // keyboard strip with octave lines
+    for (int n = 0; n < 128; ++n)
+    {
+        const bool black = isBlackKey (n);
+        g.setColour (black ? juce::Colour (0xff10383d) : juce::Colour (0xffdcecec));
+        g.fillRect (noteToX (n), (float) kMapTop, keyW - 0.6f, black ? kMapRuler * 0.6f : (float) kMapRuler - 2.0f);
+    }
+    g.setFont (juce::FontOptions (9.0f));
+    for (int n = 0; n < 128; n += 12)
+    {
+        const bool middleC = n == 60;
+        g.setColour (juce::Colours::white.withAlpha (middleC ? 0.55f : 0.18f));
+        g.fillRect (noteToX (n), (float) lanesTop, 1.0f, lanesBottom - (float) lanesTop);
+        g.setColour (juce::Colour (0xff10383d));
+        g.drawText ("C" + juce::String (n / 12 - 1), juce::Rectangle<float> (noteToX (n), (float) kMapTop + 8.0f, 22.0f, 10.0f),
+                    juce::Justification::centredLeft, false);
+    }
+
+    // one bar per part
+    for (int i = 0; i < bays; ++i)
+    {
+        const int lo = getValue ("lo", i), hi = getValue ("hi", i);
+        const bool muted = proc.apvts.getRawParameterValue ("mute" + juce::String (i))->load() > 0.5f;
+        const auto colour = partColour (i);
+        const float y = (float) (lanesTop + i * laneH);
+        const float xl = noteToX (lo), xr = noteToX (hi + 1);
+        auto bar = juce::Rectangle<float> (xl, y + 1.5f, std::max (xr - xl, 3.0f), (float) laneH - 3.0f);
+
+        g.setColour (colour.withAlpha (muted ? 0.30f : 0.85f));
+        g.fillRoundedRectangle (bar, 3.0f);
+        g.setColour (juce::Colours::white.withAlpha (0.6f));
+        g.drawRoundedRectangle (bar, 3.0f, 1.0f);
+        g.setColour (juce::Colour (0xff10383d).withAlpha (0.8f));       // grab handles
+        g.fillRect (bar.getX() + 1.5f, bar.getY() + 2.0f, 2.0f, bar.getHeight() - 4.0f);
+        g.fillRect (bar.getRight() - 3.5f, bar.getY() + 2.0f, 2.0f, bar.getHeight() - 4.0f);
+
+        // where it actually sounds once the octave shift is applied
+        const int oct = (int) std::lround (proc.apvts.getRawParameterValue ("oct" + juce::String (i))->load());
+        if (oct != 0)
+        {
+            const int sl = juce::jlimit (0, 127, lo + 12 * oct), sh = juce::jlimit (0, 127, hi + 12 * oct);
+            g.setColour (colour.brighter (0.6f));
+            g.fillRect (noteToX (sl), y + (float) laneH - 3.0f, std::max (noteToX (sh + 1) - noteToX (sl), 2.0f), 2.0f);
+        }
+
+        if (laneH >= 13 && bar.getWidth() > 40.0f)
+        {
+            auto name = proc.getBayName (i);
+            auto text = juce::String (i + 1) + (name.isNotEmpty() ? "  " + name : juce::String())
+                        + "   " + noteName (lo) + " - " + noteName (hi);
+            g.setColour (juce::Colour (0xff0b2528));
+            g.setFont (juce::FontOptions (11.0f));
+            g.drawText (text, bar.reduced (8.0f, 0.0f), juce::Justification::centredLeft, true);
+        }
+    }
+}
+
+// ===========================================================================
 OrchestraEditor::OrchestraEditor (OrchestraProcessor& p)
     : AudioProcessorEditor (&p), proc (p)
 {
@@ -282,6 +479,7 @@ OrchestraEditor::OrchestraEditor (OrchestraProcessor& p)
     viewport.setScrollBarsShown (true, false);
     viewport.setScrollBarThickness (10);
     addAndMakeVisible (viewport);
+    addAndMakeVisible (rangeMap);
 
     addAndMakeVisible (addButton);
     addButton.onClick = [this]
@@ -346,8 +544,9 @@ void OrchestraEditor::updateSize()
     const int viewH = juce::jmin (contentH, kMaxViewportHeight);
     addButton.setEnabled (n < OrchestraProcessor::kMaxBays);
 
-    if (getHeight() != kHeader + viewH + kFooter || getWidth() != kWidth)
-        setSize (kWidth, kHeader + viewH + kFooter);
+    const int total = kHeader + RangeMap::heightFor (n) + viewH + kFooter;
+    if (getHeight() != total || getWidth() != kWidth)
+        setSize (kWidth, total);
     else
         resized();
 }
@@ -355,6 +554,8 @@ void OrchestraEditor::updateSize()
 void OrchestraEditor::timerCallback()
 {
     if (strips.size() != proc.getNumBays()) rebuild();
+
+    rangeMap.repaint();
 
     int voices = 0;
     double ram = 0.0;
@@ -385,6 +586,7 @@ void OrchestraEditor::resized()
     auto area = getLocalBounds();
     auto footer = area.removeFromBottom (kFooter).reduced (18, 14);
     area.removeFromTop (kHeader);
+    rangeMap.setBounds (area.removeFromTop (RangeMap::heightFor (strips.size())).reduced (8, 0));
     viewport.setBounds (area.reduced (8, 0));
 
     const int w = viewport.getMaximumVisibleWidth();

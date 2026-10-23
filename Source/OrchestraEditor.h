@@ -136,6 +136,40 @@ private:
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (BayStrip)
 };
 
+// One lane per part over a keyboard strip. Drag either end of a bar to change that part's
+// lowest / highest key, or drag the middle to slide the whole range.
+class RangeMap : public juce::Component
+{
+public:
+    explicit RangeMap (OrchestraProcessor&);
+
+    static int heightFor (int bays);
+
+    void paint (juce::Graphics&) override;
+    void mouseMove (const juce::MouseEvent&) override;
+    void mouseDown (const juce::MouseEvent&) override;
+    void mouseDrag (const juce::MouseEvent&) override;
+    void mouseUp (const juce::MouseEvent&) override;
+
+private:
+    enum class Grab { none, low, high, both };
+
+    float noteToX (int note) const;
+    int xToNote (float x) const;
+    int laneAt (int y) const;
+    int getValue (const char* prefix, int lane) const;
+    void setValue (const char* prefix, int lane, int v);
+    Grab hitTest (const juce::MouseEvent&, int lane) const;
+    void gestures (int lane, bool begin);
+
+    OrchestraProcessor& proc;
+    int dragLane = -1;
+    Grab grab = Grab::none;
+    int grabOffset = 0;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (RangeMap)
+};
+
 class OrchestraEditor : public juce::AudioProcessorEditor,
                         private juce::Timer
 {
@@ -155,6 +189,7 @@ private:
     GlassLookAndFeel glassLook;
     juce::Image grain;
 
+    RangeMap rangeMap { proc };
     juce::Viewport viewport;
     juce::Component content;
     juce::OwnedArray<BayStrip> strips;

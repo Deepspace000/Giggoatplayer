@@ -134,6 +134,7 @@ A second plugin with up to 16 load bays. Press **+ Add part** and the window gro
 - A small **level meter** under the M and S buttons, so you can see which parts are sounding
 - **Octave** (-4 to +4): moves the part up or down in octaves
 - **Range**: lowest and highest key (click the - and + buttons, click the note and type, or use the mouse wheel) the part answers to (C4 = middle C = MIDI 60). Keys outside it are ignored
+- A **range map** across the top: one coloured bar per part over a keyboard strip. Drag either end of a bar to change that part's lowest / highest key, or drag the middle to slide it. A thin line under a bar shows where the part sounds after its octave shift. The Range boxes in each part do the same job, and both stay in step
 - **MIDI ch**: *All* plays the bay from every MIDI channel. Pick a channel (1-16) to make the
   bay answer only that channel, so one MIDI source can play a whole orchestra
 
