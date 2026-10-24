@@ -6,7 +6,7 @@ constexpr int kWidth = 780;
 constexpr int kHeader = 72;
 constexpr int kFooter = 58;
 constexpr int kGap = 6;
-constexpr int kMaxViewportHeight = 420;
+constexpr int kMaxViewportHeight = 560;
 
 void setupKnob (juce::Component& parent, juce::Slider& s, juce::Label& l, const juce::String& text)
 {
@@ -38,6 +38,17 @@ int noteFromText (const juce::String& t)
     return juce::jlimit (0, 127, (s.substring (i).getIntValue() + 1) * 12 + n);
 }
 
+void setupMini (juce::Component& parent, juce::Slider& s, juce::Label& l, const juce::String& text)
+{
+    s.setSliderStyle (juce::Slider::RotaryVerticalDrag);
+    s.setTextBoxStyle (juce::Slider::TextBoxRight, false, 52, 16);
+    parent.addAndMakeVisible (s);
+    l.setText (text, juce::dontSendNotification);
+    l.setJustificationType (juce::Justification::centredLeft);
+    l.setFont (juce::FontOptions (12.0f));
+    parent.addAndMakeVisible (l);
+}
+
 juce::ComboBox& primeChannelBox (juce::ComboBox& box)
 {
     box.addItem ("All", 1);
@@ -54,8 +65,28 @@ BayStrip::BayStrip (OrchestraProcessor& p, int bayIndex)
       fineA   (p.apvts, "fine" + juce::String (bayIndex), fine),
       channelA (p.apvts, "ch" + juce::String (bayIndex), primeChannelBox (channelBox)),
       muteA (p.apvts, "mute" + juce::String (bayIndex), muteButton),
-      soloA (p.apvts, "solo" + juce::String (bayIndex), soloButton)
+      soloA (p.apvts, "solo" + juce::String (bayIndex), soloButton),
+      atkA (p.apvts, "atk" + juce::String (bayIndex), atk),
+      decA (p.apvts, "dec" + juce::String (bayIndex), dec),
+      susA (p.apvts, "sus" + juce::String (bayIndex), sus),
+      relA (p.apvts, "rel" + juce::String (bayIndex), rel)
 {
+    setupMini (*this, atk, atkL, "Attack");
+    setupMini (*this, dec, decL, "Decay");
+    setupMini (*this, sus, susL, "Sustain");
+    setupMini (*this, rel, relL, "Release");
+    for (auto* s : { &atk, &dec, &rel })
+    {
+        s->setDoubleClickReturnValue (true, 0.0);
+        s->textFromValueFunction = [] (double v) { return v <= 0.0005 ? juce::String ("file") : juce::String (v, 2) + " s"; };
+        s->valueFromTextFunction = [] (const juce::String& t) { return t.containsAnyOf ("0123456789") ? t.getDoubleValue() : 0.0; };
+        s->updateText();
+    }
+    sus.setDoubleClickReturnValue (true, 1.0);
+    sus.textFromValueFunction = [] (double v) { return v >= 0.995 ? juce::String ("file") : juce::String (juce::roundToInt (v * 100.0)) + " %"; };
+    sus.valueFromTextFunction = [] (const juce::String& t) { return t.containsAnyOf ("0123456789") ? t.getDoubleValue() / 100.0 : 1.0; };
+    sus.updateText();
+
     addAndMakeVisible (meterBar);
     auto param = [&] (const char* id) { return p.apvts.getParameter (id + juce::String (bayIndex)); };
     octave = std::make_unique<Spinner> (*param ("oct"),
@@ -249,6 +280,20 @@ void BayStrip::resized()
 
     left.removeFromTop (6);
     statusLabel.setBounds (left.removeFromTop (20));
+
+    // ADSR row at the bottom of the strip. "file" = the instrument's own envelope
+    {
+        auto adsr = area.removeFromBottom (46);
+        juce::Slider* sl[] = { &atk, &dec, &sus, &rel };
+        juce::Label* lb[] = { &atkL, &decL, &susL, &relL };
+        const int cell = (adsr.getWidth() - 62) / 4;
+        for (int i = 0; i < 4; ++i)
+        {
+            auto c = adsr.removeFromLeft (cell);
+            lb[i]->setBounds (c.removeFromTop (14));
+            sl[i]->setBounds (c);
+        }
+    }
 
     left.removeFromTop (6);
     row = left.removeFromTop (26);

@@ -17,6 +17,10 @@ OrchestraProcessor::OrchestraProcessor()
         pOct[i]  = apvts.getRawParameterValue ("oct" + n);
         pLo[i]   = apvts.getRawParameterValue ("lo" + n);
         pHi[i]   = apvts.getRawParameterValue ("hi" + n);
+        pAtk[i]  = apvts.getRawParameterValue ("atk" + n);
+        pDec[i]  = apvts.getRawParameterValue ("dec" + n);
+        pSus[i]  = apvts.getRawParameterValue ("sus" + n);
+        pRel[i]  = apvts.getRawParameterValue ("rel" + n);
         lastPanL[i] = lastPanR[i] = lastGate[i] = 1.0f;
         std::fill (noteMap[i], noteMap[i] + 128, -1);
     }
@@ -50,6 +54,12 @@ juce::AudioProcessorValueTreeState::ParameterLayout OrchestraProcessor::createLa
         p.push_back (std::make_unique<AudioParameterInt> (ParameterID { "oct" + n, 1 }, part + "Octave", -4, 4, 0));
         p.push_back (std::make_unique<AudioParameterInt> (ParameterID { "lo" + n, 1 }, part + "Lowest key", 0, 127, 0));
         p.push_back (std::make_unique<AudioParameterInt> (ParameterID { "hi" + n, 1 }, part + "Highest key", 0, 127, 127));
+        const NormalisableRange<float> secs (0.0f, 10.0f, 0.001f, 0.35f);
+        p.push_back (std::make_unique<AudioParameterFloat> (ParameterID { "atk" + n, 1 }, part + "Attack", secs, 0.0f));
+        p.push_back (std::make_unique<AudioParameterFloat> (ParameterID { "dec" + n, 1 }, part + "Decay", secs, 0.0f));
+        p.push_back (std::make_unique<AudioParameterFloat> (ParameterID { "sus" + n, 1 }, part + "Sustain",
+                                                            NormalisableRange<float> (0.0f, 1.0f, 0.01f), 1.0f));
+        p.push_back (std::make_unique<AudioParameterFloat> (ParameterID { "rel" + n, 1 }, part + "Release", secs, 0.0f));
     }
     return { p.begin(), p.end() };
 }
@@ -145,6 +155,10 @@ void OrchestraProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::M
         {
             e->masterGain.store (juce::Decibels::decibelsToGain (pVol[i]->load()));
             e->tuneCents.store (pFine[i]->load());
+            e->userAttack.store (pAtk[i]->load());
+            e->userDecay.store (pDec[i]->load());
+            e->userSustain.store (pSus[i]->load());
+            e->userRelease.store (pRel[i]->load());
         }
 
     auto renderTo = [&] (int from, int to)

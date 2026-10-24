@@ -172,6 +172,7 @@ struct Voice
     float   decay1Coef = 1.0f, decay2Coef = 1.0f, releaseCoef = 0.99f;
     float   sustainLevel = 1.0f;
     bool    holdWait = false;
+    bool    overrideEnv = false;            // the part's own attack/decay/sustain is in charge
 };
 
 // ---------------------------------------------------------------------------
@@ -219,6 +220,8 @@ public:
     std::atomic<float> tuneCents  { 0.0f };
     std::atomic<float> attackExtra { 0.0f };    // seconds added to the gig attack
     std::atomic<float> releaseScale { 1.0f };   // multiplies the gig release time
+    // a part's own ADSR. 0 (sustain 1) = leave the instrument's own envelope alone
+    std::atomic<float> userAttack { 0.0f }, userDecay { 0.0f }, userSustain { 1.0f }, userRelease { 0.0f };
 
 private:
     // loading

@@ -94,7 +94,7 @@ class BayStrip : public juce::Component
 public:
     BayStrip (OrchestraProcessor&, int bayIndex);
 
-    static constexpr int kHeight = 140;
+    static constexpr int kHeight = 192;
 
     void paint (juce::Graphics&) override;
     void resized() override;
@@ -121,11 +121,13 @@ private:
     juce::TextButton muteButton { "M" }, soloButton { "S" };
     juce::Label fileLabel, statusLabel, volumeL, panL, fineL, channelL;
     juce::ComboBox instrumentBox, channelBox;
-    juce::Slider volume, pan, fine;
+    juce::Slider volume, pan, fine, atk, dec, sus, rel;
+    juce::Label atkL, decL, susL, relL;
 
     juce::AudioProcessorValueTreeState::SliderAttachment volumeA, panA, fineA;
     juce::AudioProcessorValueTreeState::ComboBoxAttachment channelA;
     juce::AudioProcessorValueTreeState::ButtonAttachment muteA, soloA;
+    juce::AudioProcessorValueTreeState::SliderAttachment atkA, decA, susA, relA;
 
     std::unique_ptr<juce::FileChooser> chooser;
     std::vector<std::string> shownInstruments;

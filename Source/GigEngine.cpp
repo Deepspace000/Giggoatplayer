@@ -748,12 +748,16 @@ void GigEngine::updateEnvelopeCoefs (Voice& v)
     const Zone& z = *v.zone;
     const double sr = sampleRate;
 
-    float relTime = std::max (0.004f, z.release * releaseScale.load());
+    const float ur = userRelease.load();
+    float relTime = ur > 0.0f ? std::max (0.004f, ur) : std::max (0.004f, z.release * releaseScale.load());
     v.releaseCoef = (float) std::pow (0.001, 1.0 / (relTime * sr));
 
-    v.sustainLevel = z.sustain;
-    const float d1 = std::max (0.001f, z.decay1);
-    v.decay1Coef = (float) std::pow (std::max (0.001f, z.sustain), 1.0 / (d1 * sr));
+    // the part's own decay / sustain replace the instrument's (not for release samples)
+    const float us = userSustain.load(), ud = userDecay.load();
+    v.overrideEnv = ! z.isRelease && (us < 0.999f || ud > 0.0f);
+    v.sustainLevel = v.overrideEnv ? us : z.sustain;
+    const float d1 = std::max (0.001f, v.overrideEnv && ud > 0.0f ? ud : z.decay1);
+    v.decay1Coef = (float) std::pow (std::max (0.001f, v.sustainLevel), 1.0 / (d1 * sr));
 
     const float d2 = std::max (0.01f, z.decay2);
     v.decay2Coef = (float) std::pow (0.001, 1.0 / (d2 * sr));
@@ -830,9 +834,11 @@ void GigEngine::startZone (RegionData& rd, Zone& z, int key, int vel, float held
 
     // envelope
     updateEnvelopeCoefs (*v);
-    const float attackTime = std::max (0.0015f, z.attack + attackExtra.load());
-    v->attackInc = (1.0f - z.preAttack) / (attackTime * (float) sampleRate);
-    v->env = z.isRelease ? 1.0f : z.preAttack;
+    const float ua = z.isRelease ? 0.0f : userAttack.load();
+    const float attackTime = std::max (0.0015f, ua > 0.0f ? ua : z.attack + attackExtra.load());
+    const float startEnv = ua > 0.0f ? 0.0f : z.preAttack;
+    v->attackInc = (1.0f - startEnv) / (attackTime * (float) sampleRate);
+    v->env = z.isRelease ? 1.0f : startEnv;
     if (z.isRelease) { v->stage = z.infiniteSustain || z.sustain >= 0.999f ? 3 : 1; v->env = 1.0f; }
     else v->stage = 0;
     v->pos = (double) z.startOffset;
@@ -1114,7 +1120,7 @@ void GigEngine::renderVoice (Voice& v, float* L, float* R, int n)
                 {
                     v.env = 1.0f;
                     if (z.hold && z.loopEnabled) { v.holdWait = true; v.stage = 1; }
-                    else v.stage = (z.sustain >= 0.999f) ? 3 : 1;
+                    else v.stage = (v.sustainLevel >= 0.999f) ? 3 : 1;
                 }
                 break;
             case 1:
@@ -1124,11 +1130,12 @@ void GigEngine::renderVoice (Voice& v, float* L, float* R, int n)
                     break;
                 }
                 v.env *= v.decay1Coef;
-                if (v.env <= v.sustainLevel)
+                if (v.env <= std::max (v.sustainLevel, 0.0015f))
                 {
                     v.env = v.sustainLevel;
+                    if (v.overrideEnv && v.sustainLevel < 0.002f) { killVoice (v); return; }   // sustain at zero: the note just ends
                     // a very short Decay2 time almost always means "no second decay"
-                    v.stage = (z.infiniteSustain || z.decay2 < 0.05f) ? 3 : 2;
+                    v.stage = (v.overrideEnv || z.infiniteSustain || z.decay2 < 0.05f) ? 3 : 2;
                 }
                 break;
             case 2:

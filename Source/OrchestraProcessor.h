@@ -81,6 +81,10 @@ private:
     std::atomic<float>* pOct[kMaxBays] = {};
     std::atomic<float>* pLo[kMaxBays] = {};
     std::atomic<float>* pHi[kMaxBays] = {};
+    std::atomic<float>* pAtk[kMaxBays] = {};
+    std::atomic<float>* pDec[kMaxBays] = {};
+    std::atomic<float>* pSus[kMaxBays] = {};
+    std::atomic<float>* pRel[kMaxBays] = {};
     std::atomic<float> meter[kMaxBays] = {};
     int noteMap[kMaxBays][128];      // played key -> key actually sent to the engine (-1 = not held)
 
