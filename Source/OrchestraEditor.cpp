@@ -41,10 +41,10 @@ int noteFromText (const juce::String& t)
 void setupMini (juce::Component& parent, juce::Slider& s, juce::Label& l, const juce::String& text)
 {
     s.setSliderStyle (juce::Slider::RotaryVerticalDrag);
-    s.setTextBoxStyle (juce::Slider::TextBoxRight, false, 52, 16);
+    s.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 56, 16);
     parent.addAndMakeVisible (s);
     l.setText (text, juce::dontSendNotification);
-    l.setJustificationType (juce::Justification::centredLeft);
+    l.setJustificationType (juce::Justification::centred);
     l.setFont (juce::FontOptions (12.0f));
     parent.addAndMakeVisible (l);
 }
@@ -283,7 +283,7 @@ void BayStrip::resized()
 
     // ADSR row at the bottom of the strip. "file" = the instrument's own envelope
     {
-        auto adsr = area.removeFromBottom (46);
+        auto adsr = area.removeFromBottom (66);
         juce::Slider* sl[] = { &atk, &dec, &sus, &rel };
         juce::Label* lb[] = { &atkL, &decL, &susL, &relL };
         const int cell = (adsr.getWidth() - 62) / 4;

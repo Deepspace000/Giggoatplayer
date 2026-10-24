@@ -94,7 +94,7 @@ class BayStrip : public juce::Component
 public:
     BayStrip (OrchestraProcessor&, int bayIndex);
 
-    static constexpr int kHeight = 192;
+    static constexpr int kHeight = 206;
 
     void paint (juce::Graphics&) override;
     void resized() override;
